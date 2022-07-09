@@ -1,5 +1,7 @@
 node_modules/
 *.tsbuildinfo
 .env
-dist
+dist/
 .vscode/
+package-lock.json
+yarn.lock

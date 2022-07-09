@@ -5,14 +5,21 @@
   "main": "index.js",
   "scripts": {
     "start": "npx ts-node src/main.ts",
-    "dev" : "nodemon src/main.ts"
+    "dev": "nodemon src/main.ts"
   },
   "keywords": [],
-  "author": "",
+  "author": "Wassim EL BAKKOURI",
   "license": "ISC",
   "devDependencies": {
     "@tsconfig/node16": "^1.0.3",
     "@types/node": "^18.0.3",
-    "ts-node": "^10.8.2"
+    "@types/puppeteer": "^5.4.6",
+    "dotenv": "^16.0.1",
+    "ts-node": "^10.8.2",
+    "typescript": "^4.7.4"
+  },
+  "dependencies": {
+   
+    "puppeteer": "^15.3.2"
   }
 }
