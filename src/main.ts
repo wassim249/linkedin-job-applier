@@ -146,7 +146,15 @@ const start = async (): Promise<void> => {
     await newTab.goto(`${LINKEDIN_URL}/${link}`);
 
     // wait and click easy apply button
-    await newTab.waitForSelector(".jobs-apply-button");
+    try {
+      await newTab.waitForSelector(".jobs-apply-button", {
+        timeout: 5000,
+      });
+    } catch (error) {
+      // this job already applied
+      newTab.close();
+      continue;
+    }
     // wait 3sec to easy apply button be activated
     await new Promise((resolve) => {
       setTimeout(resolve, 3000);
@@ -157,6 +165,31 @@ const start = async (): Promise<void> => {
     } catch (error) {
       // if already applied continue to next job
       continue;
+    }
+
+    try {
+      while (true) {
+        // click on next button  
+        await newTab.click('button[aria-label="Continue to next step');
+        // leave 5 seconds to the user so he can answer the questions
+        await new Promise((resolve) => {
+          setTimeout(resolve, 5000);
+        });
+      }
+    } catch (error) {
+      try {
+        // click on review my application button
+        while (true) 
+          await newTab.click('button[aria-label="Review your application"]');
+        
+      } catch (error) {
+        try {
+          // click on submit the application
+          await newTab.click('button[aria-label="Submit application"]');
+        } catch (error) {
+          console.log("please answer the question and click next");
+        }
+      }
     }
 
     // close the tab
