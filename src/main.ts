@@ -106,6 +106,62 @@ const start = async (): Promise<void> => {
 
   // go to jobs page
   await tab.goto(jobsPageLink());
+
+  // wait for jobs list to be loaded
+  await tab.waitForSelector(".jobs-search-results__list");
+
+  //scroll to the end of the page to load all jobs
+  await tab.evaluate(async () => {
+    let scrollPosition = 0;
+    let documentHeight = document.body.scrollHeight;
+
+    while (documentHeight > scrollPosition) {
+      window.scrollBy(0, documentHeight);
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1000);
+      });
+      scrollPosition = documentHeight;
+      documentHeight = document.body.scrollHeight;
+    }
+  });
+
+  // get all jobs links
+  const getJobLinks: Array<string | null> = await tab.evaluate(
+    (): Array<string | null> => {
+      let fetchedJobsLinks: Array<string | null> = [];
+      document
+        .querySelectorAll(".job-card-list__title")
+        .forEach((link) => fetchedJobsLinks.push(link.getAttribute("href")));
+      return fetchedJobsLinks;
+    }
+  );
+  let jobsLinks: Array<string | null> = getJobLinks;
+  if (jobsLinks.length == 0) {
+    console.log("Failed to load jobs");
+    process.exit(1);
+  }
+  for (const link of jobsLinks) {
+    // open new tab for each job
+    const newTab: Page = await browser.newPage();
+    await newTab.goto(`${LINKEDIN_URL}/${link}`);
+
+    // wait and click easy apply button
+    await newTab.waitForSelector(".jobs-apply-button");
+    // wait 3sec to easy apply button be activated
+    await new Promise((resolve) => {
+      setTimeout(resolve, 3000);
+    });
+    // click easy apply button
+    try {
+      await newTab.click(".jobs-apply-button");
+    } catch (error) {
+      // if already applied continue to next job
+      continue;
+    }
+
+    // close the tab
+    await newTab.close();
+  }
 };
 
 start();
