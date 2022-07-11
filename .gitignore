@@ -1,7 +1,8 @@
 node_modules/
 *.tsbuildinfo
 .env
-dist/
+main.js
+main.js.map
 .vscode/
 package-lock.json
 yarn.lock

@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "start": "ts-node src/main.ts",
-    "dev": "nodemon src/main.ts"
+    "dev": "nodemon src/main.ts",
+    "build" : "tsc --build",
+    "clean" : "tsc --build --clean"
   },
   "keywords": [],
   "author": "Wassim EL BAKKOURI",
