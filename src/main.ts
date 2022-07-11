@@ -243,12 +243,29 @@ const start = async (): Promise<void> => {
             }
           } catch (error) {
             try {
+              const FOLLOW_COMPANY: boolean =
+                process.env.FOLLOW_COMPANY == "true";
+              // follow company checkbox
+              const checkbox: ElementHandle<Element> | null = await newTab.$(
+                "#follow-company-checkbox"
+              );
+              // if follow company checkbox is checked or not
+              const isChecked: boolean | undefined = await (
+                await checkbox?.getProperty("checked")
+              )?.jsonValue();
+              if (FOLLOW_COMPANY) {
+                if (!isChecked) await checkbox?.click(); // click checkbox
+              } else {
+                if (isChecked) await checkbox?.click(); // click checkbox
+              }
+
               // click on submit the application
               await newTab.click('button[aria-label="Submit application"]');
             } catch (error) {}
           }
         }
         LOGGER(`${title} APPLIED SUCCESSFULLY`, MessageType.SUCCESS);
+
         // close the tab
         await newTab.close();
       } catch (error) {}
