@@ -16,7 +16,7 @@ const start = async (): Promise<void> => {
     console.log("Please set EMAIL and PASSWORD in .env file");
     return;
   }
-  LOGGER("APPLICATION STARTED SUCCESSFULLY");
+  LOGGER("APPLICATION STARTED SUCCESSFULLY", MessageType.SUCCESS);
   // login to linkedin
   const login = async (): Promise<boolean> => {
     try {
@@ -38,10 +38,10 @@ const start = async (): Promise<void> => {
   };
   const loginSuccess: boolean = await login();
   if (!loginSuccess) {
-    LOGGER("LOGIN FAILED");
+    LOGGER("LOGIN FAILED", MessageType.ERROR);
     return;
   }
-
+  LOGGER("LOGIN SUCCESS", MessageType.SUCCESS);
   // generate jobs page link
   const jobsPageLink = (): string => {
     const SORT_BY_DATE: boolean = process.env.SORT_BY_DATE == "true";
@@ -116,7 +116,7 @@ const start = async (): Promise<void> => {
     pageCount++;
     pagination += 25;
 
-    LOGGER(`PAGE ${pageCount}`);
+    LOGGER(`PAGE ${pageCount}`, MessageType.INFO);
     // wait for jobs list to be loaded
     await tab.waitForSelector(".jobs-search-results__list");
 
@@ -151,10 +151,10 @@ const start = async (): Promise<void> => {
     );
     let jobsLinks: Array<string | null> = getJobLinks;
     if (jobsLinks.length == 0) {
-      LOGGER(`FAILED TO LOAD JOBS`);
+      LOGGER(`FAILED TO LOAD JOBS`, MessageType.ERROR);
       process.exit(1);
     }
-    LOGGER(`${jobsLinks.length} JOB lOADED`);
+    LOGGER(`${jobsLinks.length} JOB lOADED`, MessageType.INFO);
 
     for (const link of jobsLinks) {
       try {
@@ -172,7 +172,7 @@ const start = async (): Promise<void> => {
             return title?.innerText;
           }
         );
-        LOGGER(`APPLYING FOR ${title}`);
+        LOGGER(`APPLYING FOR ${title}`, MessageType.INFO);
         // wait and click easy apply button
         try {
           await newTab.waitForSelector(".jobs-apply-button", {
@@ -180,7 +180,7 @@ const start = async (): Promise<void> => {
           });
         } catch (error) {
           // this job already applied
-          LOGGER(`${title} ALREADY APPLIED`);
+          LOGGER(`${title} ALREADY APPLIED`, MessageType.WARNING);
           newTab.close();
           continue;
         }
@@ -209,8 +209,11 @@ const start = async (): Promise<void> => {
             });
           }
           if (triesCount >= 12) {
-            LOGGER(`1 MIN EXCEEDED FOR : ${title}`);
-            LOGGER(`APPLY MANUALLY : ${`${LINKEDIN_URL}/${link}`}`);
+            LOGGER(`1 MIN EXCEEDED FOR : ${title}`, MessageType.WARNING);
+            LOGGER(
+              `APPLY MANUALLY : ${`${LINKEDIN_URL}/${link}`}`,
+              MessageType.INFO
+            );
             newTab.close();
             continue;
           }
@@ -229,8 +232,11 @@ const start = async (): Promise<void> => {
                 setTimeout(resolve, 5000);
               });
               if (triesCount >= 12) {
-                LOGGER(`1 MIN EXCEEDED FOR : ${title}`);
-                LOGGER(`APPLY MANUALLY : ${`${LINKEDIN_URL}${link}`}`);
+                LOGGER(`1 MIN EXCEEDED FOR : ${title}`, MessageType.WARNING);
+                LOGGER(
+                  `APPLY MANUALLY : ${`${LINKEDIN_URL}${link}`}`,
+                  MessageType.INFO
+                );
                 newTab.close();
                 continue;
               }
@@ -242,7 +248,7 @@ const start = async (): Promise<void> => {
             } catch (error) {}
           }
         }
-        LOGGER(`${title} APPLIED SUCCESSFULLY`);
+        LOGGER(`${title} APPLIED SUCCESSFULLY`, MessageType.SUCCESS);
         // close the tab
         await newTab.close();
       } catch (error) {}
@@ -257,6 +263,28 @@ const start = async (): Promise<void> => {
   else console.log("Please check your internet connectivity");
 })();
 
-const LOGGER = (value: string): void => {
-  console.log(`[${moment().format("YYYY:MM:DD:mm:ss")}] : ${value}`);
+enum MessageType {
+  SUCCESS = "SUCCESS",
+  ERROR = "ERROR",
+  WARNING = "WARNING",
+  INFO = "INFO",
+}
+
+const LOGGER = (value: string, type: MessageType): void => {
+  let colors = "\x1b[37m"; // white
+  switch (type) {
+    case "SUCCESS":
+      colors = "\x1b[32m"; // green
+      break;
+    case "ERROR":
+      colors = "\x1b[31m"; // red
+      break;
+    case "WARNING":
+      colors = "\x1b[33m"; // yellow
+      break;
+    case "INFO":
+      colors = "\x1b[36m"; // cyan
+      break;
+  }
+  console.log(colors, `* [${moment().format("YYYY:MM:DD:mm:ss")}] : ${value}`);
 };
