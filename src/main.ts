@@ -1,5 +1,6 @@
 import { launch, Browser, Page, ElementHandle } from "puppeteer";
 require("dotenv").config();
+import moment from "moment";
 
 const start = async (): Promise<void> => {
   const LINKEDIN_URL: string = "https://www.linkedin.com";
@@ -15,7 +16,7 @@ const start = async (): Promise<void> => {
     console.log("Please set EMAIL and PASSWORD in .env file");
     return;
   }
-
+  LOGGER("APPLICATION STARTED SUCCESSFULLY");
   // login to linkedin
   const login = async (): Promise<boolean> => {
     try {
@@ -26,11 +27,10 @@ const start = async (): Promise<void> => {
       await tab.type("#password", PASSWORD, { delay: 100 });
       // submit login form
       await tab.click('button[type="submit"]');
-      const header: ElementHandle<Element> | null = await tab.waitForSelector(
-        "#global-nav"
-      );
+      const profilePicture: ElementHandle<Element> | null =
+        await tab.waitForSelector(".global-nav__me-photo");
 
-      return header !== null;
+      return profilePicture !== null;
     } catch (error) {
       console.log(error);
       return false;
@@ -38,13 +38,17 @@ const start = async (): Promise<void> => {
   };
   const loginSuccess: boolean = await login();
   if (!loginSuccess) {
-    console.log("Login failed");
+    LOGGER("LOGIN FAILED");
     return;
   }
 
   // generate jobs page link
   const jobsPageLink = (): string => {
-    let link: string = "https://www.linkedin.com/jobs/search/?f_AL=true";
+    const SORT_BY_DATE: boolean = process.env.SORT_BY_DATE == "true";
+    let link: string = `https://www.linkedin.com/jobs/search/?f_AL=true${
+      SORT_BY_DATE ? "&sortBy=DD" : ""
+    }`;
+
     // load arguments from .env file
     const LOCATION: string | undefined = process.env.LOCATION;
     const POSITION: string | undefined = process.env.POSITION;
@@ -103,98 +107,156 @@ const start = async (): Promise<void> => {
 
     return link;
   };
+  const JOBS_LIMIT: number = parseInt(process.env.JOBS_LIMIT || "100");
+  let pagination: number = 0;
+  let pageCount: number = 0;
+  while (pagination <= JOBS_LIMIT) {
+    // go to jobs page
+    await tab.goto(jobsPageLink() + (pagination && `&start=${pagination}`));
+    pageCount++;
+    pagination += 25;
 
-  // go to jobs page
-  await tab.goto(jobsPageLink());
+    LOGGER(`PAGE ${pageCount}`);
+    // wait for jobs list to be loaded
+    await tab.waitForSelector(".jobs-search-results__list");
 
-  // wait for jobs list to be loaded
-  await tab.waitForSelector(".jobs-search-results__list");
+    //scroll to the end of the page to load all jobs
+    await tab.evaluate(async () => {
+      let scrollPosition = 0;
+      let documentHeight = document.body.scrollHeight;
 
-  //scroll to the end of the page to load all jobs
-  await tab.evaluate(async () => {
-    let scrollPosition = 0;
-    let documentHeight = document.body.scrollHeight;
-
-    while (documentHeight > scrollPosition) {
-      window.scrollBy(0, documentHeight);
-      await new Promise((resolve) => {
-        setTimeout(resolve, 1000);
-      });
-      scrollPosition = documentHeight;
-      documentHeight = document.body.scrollHeight;
-    }
-  });
-
-  // get all jobs links
-  const getJobLinks: Array<string | null> = await tab.evaluate(
-    (): Array<string | null> => {
-      let fetchedJobsLinks: Array<string | null> = [];
-      document
-        .querySelectorAll(".job-card-list__title")
-        .forEach((link) => fetchedJobsLinks.push(link.getAttribute("href")));
-      return fetchedJobsLinks;
-    }
-  );
-  let jobsLinks: Array<string | null> = getJobLinks;
-  if (jobsLinks.length == 0) {
-    console.log("Failed to load jobs");
-    process.exit(1);
-  }
-  for (const link of jobsLinks) {
-    // open new tab for each job
-    const newTab: Page = await browser.newPage();
-    await newTab.goto(`${LINKEDIN_URL}/${link}`);
-
-    // wait and click easy apply button
-    try {
-      await newTab.waitForSelector(".jobs-apply-button", {
-        timeout: 5000,
-      });
-    } catch (error) {
-      // this job already applied
-      newTab.close();
-      continue;
-    }
-    // wait 3sec to easy apply button be activated
-    await new Promise((resolve) => {
-      setTimeout(resolve, 3000);
-    });
-    // click easy apply button
-    try {
-      await newTab.click(".jobs-apply-button");
-    } catch (error) {
-      // if already applied continue to next job
-      continue;
-    }
-
-    try {
-      while (true) {
-        // click on next button  
-        await newTab.click('button[aria-label="Continue to next step');
-        // leave 5 seconds to the user so he can answer the questions
+      while (documentHeight > scrollPosition) {
+        window.scrollBy(0, documentHeight);
         await new Promise((resolve) => {
-          setTimeout(resolve, 5000);
+          setTimeout(resolve, 2000);
         });
+        scrollPosition = documentHeight;
+        documentHeight = document.body.scrollHeight;
       }
-    } catch (error) {
-      try {
-        // click on review my application button
-        while (true) 
-          await newTab.click('button[aria-label="Review your application"]');
-        
-      } catch (error) {
-        try {
-          // click on submit the application
-          await newTab.click('button[aria-label="Submit application"]');
-        } catch (error) {
-          console.log("please answer the question and click next");
-        }
-      }
-    }
+      document.body.scrollTop = document.documentElement.scrollTop = 0;
+    });
 
-    // close the tab
-    await newTab.close();
+    // get all jobs links
+    const getJobLinks: Array<string | null> = await tab.evaluate(
+      (): Array<string | null> => {
+        console.log(
+          document.querySelectorAll(".jobs-search-results__list-item").length
+        );
+        let fetchedJobsLinks: Array<string | null> = [];
+        document
+          .querySelectorAll(".job-card-list__title")
+          .forEach((link) => fetchedJobsLinks.push(link.getAttribute("href")));
+        return fetchedJobsLinks;
+      }
+    );
+    let jobsLinks: Array<string | null> = getJobLinks;
+    if (jobsLinks.length == 0) {
+      LOGGER(`FAILED TO LOAD JOBS`);
+      process.exit(1);
+    }
+    LOGGER(`${jobsLinks.length} JOB lOADED`);
+
+    for (const link of jobsLinks) {
+      try {
+        // open new tab for each job
+        const newTab: Page = await browser.newPage();
+        await newTab.goto(`${LINKEDIN_URL}/${link}`);
+        // wait for job title to be loaded
+        await newTab.waitForSelector(".jobs-unified-top-card__job-title");
+        // load job title
+        const title: string | undefined = await newTab.evaluate(
+          (): string | undefined => {
+            const title: HTMLElement | null = document.querySelector(
+              ".jobs-unified-top-card__job-title"
+            );
+            return title?.innerText;
+          }
+        );
+        LOGGER(`APPLYING FOR ${title}`);
+        // wait and click easy apply button
+        try {
+          await newTab.waitForSelector(".jobs-apply-button", {
+            timeout: 2000,
+          });
+        } catch (error) {
+          // this job already applied
+          LOGGER(`${title} ALREADY APPLIED`);
+          newTab.close();
+          continue;
+        }
+        // wait 3sec to easy apply button be activated
+        await new Promise((resolve) => {
+          setTimeout(resolve, 3000);
+        });
+        // click easy apply button
+        try {
+          await newTab.click(".jobs-apply-button");
+        } catch (error) {
+          // if already applied continue to next job
+          continue;
+        }
+
+        try {
+          let triesCount: number = 0;
+          while (true) {
+            if (triesCount >= 12) break;
+            // click on next button
+            await newTab.click('button[aria-label="Continue to next step');
+            // leave 5 seconds to the user so he can answer the questions
+            await new Promise((resolve) => {
+              triesCount++;
+              setTimeout(resolve, 5000);
+            });
+          }
+          if (triesCount >= 12) {
+            LOGGER(`1 MIN EXCEEDED FOR : ${title}`);
+            LOGGER(`APPLY MANUALLY : ${`${LINKEDIN_URL}/${link}`}`);
+            newTab.close();
+            continue;
+          }
+        } catch (error) {
+          try {
+            let triesCount: number = 0;
+            // click on review my application button
+            while (true) {
+              if (triesCount >= 12) break;
+              await newTab.click(
+                'button[aria-label="Review your application"]'
+              );
+              // leave 5 seconds to the user so he can answer the questions
+              await new Promise((resolve) => {
+                triesCount++;
+                setTimeout(resolve, 5000);
+              });
+              if (triesCount >= 12) {
+                LOGGER(`1 MIN EXCEEDED FOR : ${title}`);
+                LOGGER(`APPLY MANUALLY : ${`${LINKEDIN_URL}${link}`}`);
+                newTab.close();
+                continue;
+              }
+            }
+          } catch (error) {
+            try {
+              // click on submit the application
+              await newTab.click('button[aria-label="Submit application"]');
+            } catch (error) {}
+          }
+        }
+        LOGGER(`${title} APPLIED SUCCESSFULLY`);
+        // close the tab
+        await newTab.close();
+      } catch (error) {}
+    }
   }
 };
+(async () => {
+  let isConnected: boolean = !!(await require("dns")
+    .promises.resolve("google.com")
+    .catch(() => {}));
+  if (isConnected) start();
+  else console.log("Please check your internet connectivity");
+})();
 
-start();
+const LOGGER = (value: string): void => {
+  console.log(`[${moment().format("YYYY:MM:DD:mm:ss")}] : ${value}`);
+};
