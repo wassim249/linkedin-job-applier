@@ -45,7 +45,7 @@ const start = async (): Promise<void> => {
   // generate jobs page link
   const jobsPageLink = (): string => {
     const SORT_BY_DATE: boolean = process.env.SORT_BY_DATE == "true";
-    let link: string = `https://www.linkedin.com/jobs/search/?f_AL=true${
+    let link: string = `${LINKEDIN_URL}/jobs/search/?f_AL=true${
       SORT_BY_DATE ? "&sortBy=DD" : ""
     }`;
 
@@ -102,6 +102,7 @@ const start = async (): Promise<void> => {
       link += index == 0 ? `&f_WT=${onSiteOrRemote}` : `%2C${onSiteOrRemote}`;
     });
 
+
     // add location and postion to link
     link += `&keywords=${POSITION}&location=${LOCATION}`;
 
@@ -112,7 +113,8 @@ const start = async (): Promise<void> => {
   let pageCount: number = 0;
   while (pagination <= JOBS_LIMIT) {
     // go to jobs page
-    await tab.goto(jobsPageLink() + (pagination && `&start=${pagination}`));
+    await tab.goto(jobsPageLink() + (pagination ? `&start=${pagination}` : ''));
+    
     pageCount++;
     pagination += 25;
 
@@ -271,6 +273,7 @@ const start = async (): Promise<void> => {
       } catch (error) {}
     }
   }
+  LOGGER(`${JOBS_LIMIT} JOBS LIMIT REACHED`,MessageType.INFO)
 };
 (async () => {
   let isConnected: boolean = !!(await require("dns")
@@ -303,5 +306,5 @@ const LOGGER = (value: string, type: MessageType): void => {
       colors = "\x1b[36m"; // cyan
       break;
   }
-  console.log(colors, `* [${moment().format("YYYY:MM:DD:mm:ss")}] : ${value}`);
+  console.log(colors, `* [${moment().format("YYYY/MM/DD hh:mm:ss")}] : ${value}`);
 };
