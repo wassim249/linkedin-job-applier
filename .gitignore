@@ -6,3 +6,4 @@ main.js.map
 .vscode/
 package-lock.json
 yarn.lock
+output/
