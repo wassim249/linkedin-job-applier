@@ -1,7 +1,7 @@
-import { launch, Browser, Page, ElementHandle } from "puppeteer";
-require("dotenv").config();
-import moment from "moment";
 import fs from "fs";
+import moment from "moment";
+import { Browser, ElementHandle, launch, Page } from "puppeteer";
+require("dotenv").config();
 
 const start = async (): Promise<void> => {
   const LINKEDIN_URL: string = "https://www.linkedin.com";
@@ -10,6 +10,7 @@ const start = async (): Promise<void> => {
     headless: false,
   });
   const tab: Page = await browser.newPage();
+  tab.setDefaultNavigationTimeout(0);
   // load credentials from .env file
   const EMAIL: string = process.env.EMAIL || "";
   const PASSWORD: string = process.env.PASSWORD || "";
@@ -45,9 +46,8 @@ const start = async (): Promise<void> => {
   // generate jobs page link
   const jobsPageLink = (): string => {
     const SORT_BY_DATE: boolean = process.env.SORT_BY_DATE == "true";
-    let link: string = `${LINKEDIN_URL}/jobs/search/?f_AL=true${
-      SORT_BY_DATE ? "&sortBy=DD" : ""
-    }`;
+    let link: string = `${LINKEDIN_URL}/jobs/search/?f_AL=true${SORT_BY_DATE ? "&sortBy=DD" : ""
+      }`;
 
     // load arguments from .env file
     const LOCATION: string | undefined = process.env.LOCATION;
@@ -96,9 +96,8 @@ const start = async (): Promise<void> => {
 
     // add on site or remote to link
     onSiteOrRemote.forEach((onSiteOrRemote: string, index: number) => {
-      onSiteOrRemote = `${
-        LINKEDIN_ON_SITE_OR_REMOTE.indexOf(onSiteOrRemote) + 1
-      }`;
+      onSiteOrRemote = `${LINKEDIN_ON_SITE_OR_REMOTE.indexOf(onSiteOrRemote) + 1
+        }`;
       link += index == 0 ? `&f_WT=${onSiteOrRemote}` : `%2C${onSiteOrRemote}`;
     });
 
@@ -110,7 +109,8 @@ const start = async (): Promise<void> => {
   const JOBS_LIMIT: number = parseInt(process.env.JOBS_LIMIT || "100");
   let pagination: number = 0;
   let pageCount: number = 0;
-  while (pagination <= JOBS_LIMIT) {
+  let appliedJobsNb: number = 0
+  while (appliedJobsNb <= JOBS_LIMIT) {
     // go to jobs page
     await tab.goto(jobsPageLink() + (pagination ? `&start=${pagination}` : ""));
 
@@ -119,7 +119,7 @@ const start = async (): Promise<void> => {
 
     LOGGER(`PAGE ${pageCount}`, MessageType.INFO);
     // wait for jobs list to be loaded
-    await tab.waitForSelector(".jobs-search-results__list");
+    await tab.waitForSelector(".scaffold-layout__list-container");
 
     //scroll to the end of the page to load all jobs
     await tab.evaluate(async () => {
@@ -255,22 +255,28 @@ const start = async (): Promise<void> => {
               const isChecked: boolean | undefined = await (
                 await checkbox?.getProperty("checked")
               )?.jsonValue();
-              if (FOLLOW_COMPANY) {
-                if (!isChecked) await checkbox?.click(); // click checkbox
-              } else {
-                if (isChecked) await checkbox?.click(); // click checkbox
+              try {
+                if (FOLLOW_COMPANY) {
+                  if (!isChecked) await checkbox?.click(); // click checkbox
+                } else {
+                  if (isChecked) await checkbox?.click(); // click checkbox
+                }
+              } catch (error) {
+
               }
 
               // click on submit the application
               await newTab.click('button[aria-label="Submit application"]');
-            } catch (error) {}
+            } catch (error) {
+            }
           }
         }
+        appliedJobsNb++
         LOGGER(`${title} APPLIED SUCCESSFULLY`, MessageType.SUCCESS);
 
         // close the tab
         await newTab.close();
-      } catch (error) {}
+      } catch (error) { }
     }
   }
   LOGGER(`${JOBS_LIMIT} JOBS LIMIT REACHED`, MessageType.INFO);
@@ -278,7 +284,7 @@ const start = async (): Promise<void> => {
 (async () => {
   let isConnected: boolean = !!(await require("dns")
     .promises.resolve("google.com")
-    .catch(() => {}));
+    .catch(() => { }));
   if (isConnected) start();
   else console.log("Please check your internet connectivity");
 })();
